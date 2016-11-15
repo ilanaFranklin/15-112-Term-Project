@@ -5,7 +5,7 @@ import math
 
 pygame.init()
 
-gameDisplay = pygame.display.set_mode((800, 600))
+gameDisplay = pygame.display.set_mode((1000, 600))
 pygame.display.set_caption("Rope Simulation")
 
 gameExit = False
@@ -17,7 +17,7 @@ class Node(object):
     def __init__(self, startX, startY):
         self.x = startX
         self.y = startY
-        self.mass = 5
+        self.mass = 50
         self.xVel = 0
         self.yVel = 0
         self.xForce = 0
@@ -30,10 +30,14 @@ class Node(object):
         self.xForce += force
 
     def moveMass(self):
-        self.yVel += (self.yForce / self.mass) * 0.2
-        self.y += int(self.yVel * 0.2)
-        self.xVel += (self.xForce / self.mass) * 0.2
-        self.x += int(self.xVel * 0.2)
+        self.yVel += (self.yForce / self.mass) * 0.3
+        self.y += int(self.yVel * 0.3)
+        self.xVel += (self.xForce / self.mass) * 0.3
+        self.x += int(self.xVel * 0.3)
+
+    def drawNode(self, gameDisplay):
+        pygame.draw.circle(gameDisplay, (0, 0, 0), [
+            self.x, self.y], 5)
 
 
 class Spring(object):
@@ -41,76 +45,60 @@ class Spring(object):
     def __init__(self, mass1, mass2):
         self.m1 = mass1
         self.m2 = mass2
+        self.length = 2
+        self.k = 150
+        self.friction = 60
+
+    def drawSpring(self, gameDisplay):
+        pygame.draw.line(gameDisplay, (0, 0, 0), (self.m1.x,
+                                                  self.m1.y), (self.m2.x, self.m2.y), 8)
 
     def solveSpring(self):
         forceY = 0
+        forceX = 0
         yLength = self.m2.y - self.m1.y
         xLength = self.m2.x - self.m1.x
         vector = math.sqrt(yLength**2 + xLength**2)
-        if abs(vector) > 10:
-            forceY += -(yLength / abs(vector)) * (abs(vector) - 50) * 50
-            # forceY = ((self.m1.y - self.m2.y)*5)/self.m1.mass
-            forceY += (self.m1.yVel - self.m2.yVel) * 3
+        if abs(vector) > 0:
+            forceY += -(yLength / abs(vector)) * \
+                (abs(vector) - self.length) * self.k
+            forceY += (self.m1.yVel - self.m2.yVel) * self.friction
+            forceX += -(xLength / abs(vector)) * \
+                (abs(vector) - self.length) * self.k
+            forceX += (self.m1.xVel - self.m2.xVel) * self.friction
         self.m1.applyYForce(-forceY)
         self.m2.applyYForce(forceY)
-        forceX = 0
-        if abs(vector) > 10:
-            forceX += -(xLength / abs(vector)) * (abs(vector) - 50) * 50
-            forceX += (self.m1.xVel - self.m2.xVel) * 3
-            print(forceX)
         self.m1.applyXForce(-forceX)
         self.m2.applyXForce(forceX)
+basicNode = Node(200, 0)
+nodeList  = []
+for i in range(15):
+    nodeList.append(Node(500 + i, 0))
+endNode = Node(600, 110)
+springList = []
+springList.append(Spring(basicNode, nodeList[0]))
+for i in range(14):
+    springList.append(Spring(nodeList[i], nodeList[i+1]))
+springList.append(Spring(nodeList[len(nodeList) - 1], endNode))
 
-
-node1 = Node(400, 0)
-node2 = Node(450, 20)
-node3 = Node(500, 10)
-node4 = Node(550, 0)
-node5 = Node(600, 0)
-spring1 = Spring(node1, node2)
-spring2 = Spring(node2, node3)
-spring3 = Spring(node3, node4)
-spring4 = Spring(node4, node5)
 while not gameExit:
+    gameDisplay.fill((255, 255, 255))
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             gameExit = True
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            node5.y = pygame.mouse.get_pos()[1]
-            node5.x = pygame.mouse.get_pos()[0]
-    node2.yForce = 0
-    node3.yForce = 0
-    node4.yForce = 0
-    node5.yForce = 0
-    node2.xForce = 0
-    node3.xForce = 0
-    node4.xForce = 0
-    node5.xForce = 0
-    node2.applyYForce(9.81 * node2.mass)
-    node3.applyYForce(9.81 * node2.mass)
-    node4.applyYForce(9.81 * node2.mass)
-    node5.applyYForce(9.81 * node2.mass)
-    spring1.solveSpring()
-    spring2.solveSpring()
-    spring3.solveSpring()
-    spring4.solveSpring()
-    node2.moveMass()
-    node3.moveMass()
-    node4.moveMass()
-    node5.moveMass()
-    gameDisplay.fill((255, 255, 255))
-    pygame.draw.circle(gameDisplay, (0, 255, 0), [
-                       node1.x, node1.y], 10)
-    pygame.draw.circle(gameDisplay, (255, 255, 0), [
-                       node2.x, node2.y], 10)
-    pygame.draw.circle(gameDisplay, (255, 255, 0), [
-                       node3.x, node3.y], 10)
-    pygame.draw.circle(gameDisplay, (255, 255, 0), [
-                       node4.x, node4.y], 10)
-    pygame.draw.circle(gameDisplay, (255, 255, 0), [
-                       node5.x, node5.y], 10)
+    for node in nodeList:
+        node.xForce = 0
+        node.yForce = 0
+        node.applyYForce(9.81 * node.mass)
+    for spring in springList:
+        spring.solveSpring()
+    for node in nodeList:
+        node.moveMass()
+        # node.drawNode(gameDisplay)
+    for spring in springList:
+        spring.drawSpring(gameDisplay)
     pygame.display.update()
-    clock.tick(60)
+    clock.tick(100)
 
 pygame.quit
 
