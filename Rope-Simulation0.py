@@ -1,7 +1,7 @@
 import pygame
 import math
+import random
 
-# ehhhh
 
 pygame.init()
 
@@ -17,7 +17,7 @@ class Node(object):
     def __init__(self, startX, startY):
         self.x = startX
         self.y = startY
-        self.mass = 200
+        self.mass = 400
         self.xVel = 0
         self.yVel = 0
         self.xForce = 0
@@ -37,7 +37,7 @@ class Node(object):
 
     def drawNode(self, gameDisplay):
         pygame.draw.circle(gameDisplay, (0, 0, 0), [
-            self.x, self.y], 5)
+            self.x, self.y], 2)
 
 
 class Spring(object):
@@ -45,13 +45,13 @@ class Spring(object):
     def __init__(self, mass1, mass2):
         self.m1 = mass1
         self.m2 = mass2
-        self.length = 2
+        self.length = 1
         self.k = 425
-        self.friction = 275
+        self.friction = 278
 
-    def drawSpring(self, gameDisplay):
-        pygame.draw.line(gameDisplay, (0, 0, 0), (self.m1.x,
-                                                  self.m1.y), (self.m2.x, self.m2.y), 1)
+    def drawSpring(self, gameDisplay, color=(66, 145, 66)):
+        pygame.draw.line(gameDisplay, color,
+                         (self.m1.x, self.m1.y), (self.m2.x, self.m2.y), 2)
 
     def solveSpring(self):
         forceY = 0
@@ -59,13 +59,16 @@ class Spring(object):
         yLength = self.m2.y - self.m1.y
         xLength = self.m2.x - self.m1.x
         vector = math.sqrt(yLength**2 + xLength**2)
-        diff = (self.length - vector) / vector
         if abs(vector) > 0:
+            # Set corrective Y spring forces
             forceY += -(yLength / abs(vector)) * \
                 (abs(vector) - self.length) * self.k
+            # Add in Y spring friction
             forceY += (self.m1.yVel - self.m2.yVel) * self.friction
+            # Set corrective X spring forces
             forceX += -(xLength / abs(vector)) * \
                 (abs(vector) - self.length) * self.k
+            # Add in X spring friction
             forceX += (self.m1.xVel - self.m2.xVel) * self.friction
         self.m1.applyYForce(-forceY)
         self.m2.applyYForce(forceY)
@@ -77,6 +80,7 @@ class Rope(object):
 
     def __init__(self, numNodes, x0, y0, x1, y1):
         self.numNodes = numNodes
+        # Set the leftmost node as the startNode
         if x1 < x0:
             startX, startY = x1, y1
             endX, endY = x0, y0
@@ -85,9 +89,14 @@ class Rope(object):
             endX, endY = x1, y1
         self.startNode = Node(startX, startY)
         self.endNode = Node(endX, endY)
+        # Create list of nodes
+        slopeY = int((endY - startY) / numNodes)
+        slopeX = int((endX - startX) / numNodes)
         self.nodeList = []
         for node in range(numNodes):
-            self.nodeList.append(Node(startX + node, 0))
+            self.nodeList.append(
+                Node(startX + slopeX * node, startY + slopeY * node))
+        # Connect all nodes with springs to create rope
         self.springList = [Spring(self.startNode, self.nodeList[0])]
         for spring in range(numNodes - 1):
             self.springList.append(
@@ -99,7 +108,7 @@ class Rope(object):
         for node in self.nodeList:
             node.xForce = 0
             node.yForce = 0
-            node.applyYForce(9.81 * node.mass)
+            node.applyYForce(7 * node.mass)
         for spring in self.springList:
             spring.solveSpring()
         for node in self.nodeList:
@@ -108,21 +117,27 @@ class Rope(object):
     def drawRope(self, gameDisplay):
         for spring in self.springList:
             spring.drawSpring(gameDisplay)
+        # for node in self.nodeList:
+        #     node.drawNode(gameDisplay)
 
-rope1 = Rope(10, 200, 10, 400, 30)
-rope2 = Rope(15, 0, 200, 1000, 200)
+ropeList = [
+    # Rope(15, 0, 200, 1000, 200),
+    # Rope(15, 50, 100, 1000, 400),
+    # Rope(20, 0, 400, 1000, 20),
+    # Rope(15, 0, 150, 1000, 200),
+    # Rope(15, 60, 50, 800, 50)]
+    Rope(15, 20, 0, 150, 0),
+    Rope(15, 150, 0, 300, 0)]
 while not gameExit:
     gameDisplay.fill((255, 255, 255))
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             gameExit = True
-    rope1.updateRope()
-    rope2.updateRope()
-    rope1.drawRope(gameDisplay)
-    rope2.drawRope(gameDisplay)
+    for rope in ropeList:
+        rope.updateRope()
+        rope.drawRope(gameDisplay)
     pygame.display.update()
     clock.tick(150)
 
 pygame.quit
-
 quit
