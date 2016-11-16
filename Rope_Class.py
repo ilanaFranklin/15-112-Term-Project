@@ -1,15 +1,5 @@
 import pygame
 import math
-import random
-
-
-pygame.init()
-
-gameDisplay = pygame.display.set_mode((1000, 600))
-pygame.display.set_caption("Rope Simulation")
-
-gameExit = False
-clock = pygame.time.Clock()
 
 
 class Node(object):
@@ -117,25 +107,3 @@ class Rope(object):
     def drawRope(self, gameDisplay):
         for spring in self.springList:
             spring.drawSpring(gameDisplay)
-        # for node in self.nodeList:
-        #     node.drawNode(gameDisplay)
-
-ropeList = [
-    Rope(15, 0, 200, 1000, 200),
-    Rope(15, 50, 100, 1000, 400),
-    Rope(15, 0, 400, 1000, 20),
-    Rope(10, 0, 150, 1000, 200),
-    Rope(15, 60, 50, 800, 50)]
-while not gameExit:
-    gameDisplay.fill((255, 255, 255))
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            gameExit = True
-    for rope in ropeList:
-        rope.updateRope()
-        rope.drawRope(gameDisplay)
-    pygame.display.update()
-    clock.tick(150)
-
-pygame.quit
-quit
