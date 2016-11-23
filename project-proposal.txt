@@ -1,0 +1,20 @@
+########################################
+ Term Project Proposal
+ Ilana Franklin (inf), Section G
+########################################
+ My term project will be a simple game in which you play a spider climbing to the top of a tree. The tree will be recursively generated, and the spider will start at one
+of the lower branches. The goal is to reach the top of the tree by drawing webs, however, you have a limited amount of web. To get more web, you have to catch bugs. The
+webs that you draw will also follow physics and react to things like wind speed and collision with bugs.
+
+The tone of the game will be calm and relaxing, not fast paced. Animations will be minimalist.
+Additionally, the sky will change colors according to time passing in the game.
+
+The most challenging parts of this project will algorithms for generation of the
+tree, and coding the physics of the web. I have already finished with web physics,
+as shown in draw-rope.py
+
+
+########################################
+ Modules
+########################################
+ - Pygame (tech demo already completed)

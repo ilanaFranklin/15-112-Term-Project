@@ -1,0 +1,31 @@
+########################################
+ Competitive Analysis
+ Ilana Franklin (inf), Section G
+########################################
+
+ARACHNOPHILIA: THE SPIDER WEB GAME
+
+Very similar to my idea, but is much more fast paced.
+
+Similarities:
+    - Drag mouse to draw web
+    - Catch bugs
+    - Limited amount of web, must catch bugs to build more web
+    - Spider can climb across webs
+
+Differences:
+    - My game will be much more simplistic in terms of graphics (only silhouettes)
+    - Drawn webs will actually follow physics (reacting to wind, bugs, etc.)
+    - Pace of the game will be relaxed and much slower, I want the game to be
+      more like Hermit in terms of a calm tone
+    - Time will pass in my game (sky changes colors)
+    - Goal is to get to the top of the tree, not survive as long as possible
+
+Overall, my game will be much more calm in tone. Additionally, the tree that
+you climb will be randomly generated every game, instead of just one frame of
+branches that is the same every time.
+
+
+This is the most similar game that I could find to my own. Nothing else I could
+find online was really reflective of my game at all. Other games involving spiders
+that I could find didn't have much to do with drawing webs or physics. Therefore
