@@ -2,9 +2,9 @@ import pygame
 from Rope_Class import *
 import math
 import random
-################################################################################
+##########################################################################
 # Click to draw webs
-################################################################################
+##########################################################################
 pygame.init()
 
 gameDisplay = pygame.display.set_mode((1000, 600))
@@ -17,16 +17,17 @@ endTemp = None
 
 
 def drawWebLine(canvas, startCoord, endCoord):
-    pygame.draw.aaline(canvas, (0, 0, 0), startCoord, endCoord, 2)
+    pygame.draw.line(canvas, (0, 0, 0), startCoord, endCoord, 3)
 
 
 def lineLength(startCoord, endCoord):
-    return math.sqrt(abs(endCoord[0] - startCoord[0]) + abs(endCoord[1] - startCoord[1]))
+    return math.sqrt(abs(endCoord[0] - startCoord[0])
+            + abs(endCoord[1] - startCoord[1]))
 
 
 def applyWind(force, ropes):
     for rope in ropes:
-        rope.applyXForce(force)
+        rope.wind = force
 
 ropeList = []
 wind = 50
@@ -42,18 +43,20 @@ while not gameExit:
             else:
                 drawingLine = False
                 endTemp = pygame.mouse.get_pos()
-                numNodes = int(lineLength(startTemp, endTemp) * 0.5)
+                numNodes = int(lineLength(startTemp, endTemp) * 0.8)
                 ropeList.append(Rope(numNodes, startTemp[0], startTemp[1],
                                      endTemp[0], endTemp[1]))
     if drawingLine:
         drawWebLine(gameDisplay, startTemp, pygame.mouse.get_pos())
-    # applyWind(wind, ropeList)
-    # wind = random.randint(1, 100)
+    applyWind(wind, ropeList)
+    wind = random.randint(50, 300)  # Simulate wind speeds
+
+    print(wind)
     for rope in ropeList:
         rope.updateRope()
         rope.drawRope(gameDisplay)
     pygame.display.update()
-    clock.tick(150)
+    clock.tick(75)
 
 pygame.quit
 quit

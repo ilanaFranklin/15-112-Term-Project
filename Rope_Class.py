@@ -7,7 +7,7 @@ class Node(object):
     def __init__(self, startX, startY):
         self.x = startX
         self.y = startY
-        self.mass = 300
+        self.mass = 100
         self.xVel = 0
         self.yVel = 0
         self.xForce = 0
@@ -35,13 +35,13 @@ class Spring(object):
     def __init__(self, mass1, mass2):
         self.m1 = mass1
         self.m2 = mass2
-        self.length = 1
-        self.k = 425
-        self.friction = 270
+        self.length = 0.75
+        self.k = 300
+        self.friction = 50
 
-    def drawSpring(self, gameDisplay, color=(38, 145, 170)):
+    def drawSpring(self, gameDisplay, color=(0, 0, 0)):
         pygame.draw.aaline(gameDisplay, color,
-                         (self.m1.x, self.m1.y), (self.m2.x, self.m2.y), 1)
+                         (self.m1.x, self.m1.y), (self.m2.x, self.m2.y), 3)
 
     def solveSpring(self):
         forceY = 0
@@ -93,12 +93,14 @@ class Rope(object):
                 Spring(self.nodeList[spring], self.nodeList[spring + 1]))
         self.springList.append(
             Spring(self.nodeList[len(self.nodeList) - 1], self.endNode))
+        self.wind = 0
 
     def updateRope(self):
         for node in self.nodeList:
             node.xForce = 0
             node.yForce = 0
-            node.applyYForce(5 * node.mass)
+            node.applyYForce(2 * node.mass)
+            node.applyXForce(self.wind)
         for spring in self.springList:
             spring.solveSpring()
         for node in self.nodeList:
