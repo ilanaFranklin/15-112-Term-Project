@@ -49,6 +49,7 @@ def scaleTree(tree, scale):
                 coord[0] *= scale
                 coord[1] += scale
 
+
 def drawTree(gameDisplay, branchList):
     for branch in branchList:
         pygame.draw.line(gameDisplay, (0, 0, 0), branch[

@@ -44,17 +44,20 @@ while not gameExit:
                 drawingLine = False
                 endTemp = pygame.mouse.get_pos()
                 numNodes = int(lineLength(startTemp, endTemp) * 0.8)
-                ropeList.append(Rope(numNodes, startTemp[0], startTemp[1],
-                                     endTemp[0], endTemp[1]))
+                newRope = Rope(numNodes, startTemp[0], startTemp[1],
+                                     endTemp[0], endTemp[1])
+                ropeList.append(newRope)
+                for other in ropeList:
+                    temp = newRope.solveIntersection(other)
+                    if temp != None: print(temp)
     if drawingLine:
         drawWebLine(gameDisplay, startTemp, pygame.mouse.get_pos())
     applyWind(wind, ropeList)
     wind = random.randint(-800, -50)  # Simulate wind speeds
-
-    print(wind)
     for rope in ropeList:
         rope.updateRope()
         rope.drawRope(gameDisplay)
+
     pygame.display.update()
     clock.tick(50)
 

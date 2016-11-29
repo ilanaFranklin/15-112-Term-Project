@@ -41,7 +41,7 @@ class Spring(object):
 
     def drawSpring(self, gameDisplay, color=(0, 0, 0)):
         pygame.draw.aaline(gameDisplay, color,
-                         (self.m1.x, self.m1.y), (self.m2.x, self.m2.y), 3)
+                           (self.m1.x, self.m1.y), (self.m2.x, self.m2.y), 3)
 
     def solveSpring(self):
         forceY = 0
@@ -84,16 +84,21 @@ class Rope(object):
         slopeX = int((endX - startX) / numNodes)
         self.nodeList = []
         for node in range(numNodes):
+            # Each node starts at a point on the straight line from (x0, y0)
             self.nodeList.append(
                 Node(startX + slopeX * node, startY + slopeY * node))
         # Connect all nodes with springs to create rope
+        # Attach the first node
         self.springList = [Spring(self.startNode, self.nodeList[0])]
         for spring in range(numNodes - 1):
             self.springList.append(
                 Spring(self.nodeList[spring], self.nodeList[spring + 1]))
+        # Attach the last node
         self.springList.append(
             Spring(self.nodeList[len(self.nodeList) - 1], self.endNode))
-        self.wind = 0
+        # Set slope
+        self.slope = slopeY / slopeX
+        self.intercept = startY - 1 * self.slope * startX
 
     def updateRope(self):
         for node in self.nodeList:
@@ -114,3 +119,40 @@ class Rope(object):
     def drawRope(self, gameDisplay):
         for spring in self.springList:
             spring.drawSpring(gameDisplay)
+
+    def pointOnRope(self, x, y):
+        return (x >= min(self.startNode.x, self.endNode.x)
+            and x <= max(self.startNode.x, self.endNode.x)
+            and y >= min(self.startNode.y, self.endNode.y)
+            and y <= max(self.startNode.y, self.endNode.y))
+
+    def getIntersection(self, other):
+        if self.slope == other.slope:
+            return None
+        b = other.intercept - self.intercept
+        m = self.slope - other.slope
+        x = int(b / m)
+        y = int(self.slope * x + self.intercept)
+        if self.pointOnRope(x, y) and other.pointOnRope(x, y):
+            return (x, y)
+        return None
+
+    def solveIntersection(self, other):
+        points = self.getIntersection(other)
+        if points == None: return None
+        temp = Node(points[0], points[1])
+        selfXDiff = self.endNode.x - self.startNode.x
+        print(selfXDiff)
+        print(points[0])
+        xRatio = points[0] - self.startNode.x
+        selfInsert = int((xRatio * len(self.nodeList))/selfXDiff)
+        print(len(self.nodeList))
+        print(selfInsert)
+        self.nodeList.insert(selfInsert, temp)
+        self.springList.append(Spring(self.nodeList[selfInsert - 1], temp))
+        otherDiff = other.endNode.x - other.startNode.x
+        otherRatio = points[0] - other.startNode.x
+        otherInsert = int((otherRatio * len(other.nodeList))/otherDiff)
+        other.nodeList.insert(otherInsert, temp)
+        other.springList.append(
+            Spring(other.nodeList[otherInsert - 1], temp))

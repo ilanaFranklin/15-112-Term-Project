@@ -1,27 +1,30 @@
 import pygame
 
-pygame.init()
+line1 = [(1, 1), (5, 5)]
+line2 = [(2, 3), (4, 8)]
 
-gameDisplay = pygame.display.set_mode((1000, 600))
-gameExit = False
-surface = pygame.Surface((1000, 1000))
-surface.fill((255, 0, 0))
-pygame.draw.circle(surface, (0, 0, 0), [100, 100], 50)
-surface.set_colorkey((255, 0, 0))
+def slope(p1, p2) :
+   return (p2[1] - p1[1]) * 1. / (p2[0] - p1[0])
 
-width = 1000
-height = 1000
+def y_intercept(slope, p1) :
+   return p1[1] - 1. * slope * p1[0]
 
-while not gameExit:
-    gameDisplay.fill((255, 255, 255))
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            gameExit = True
-        if event.type == pygame.KEYDOWN:
-            print("HERE")
-            width -= 20
-            height -= 20
-            surface = pygame.transform.scale(surface, (width, height))
-            print(surface.get_width())
-    gameDisplay.blit(surface, (50, 50))
-    pygame.display.update()
+def didIntersect(line0, line1):
+    m1 = slope(line0[0], line0[1])
+    print(m1)
+    b1 = y_intercept(slope(line0[0], line0[1]), line0[0])
+    print(b1)
+    m2 = slope(line1[0], line1[1])
+    print(m2)
+    b2 = y_intercept(slope(line1[0], line1[1]), line1[0])
+    print(b2)
+    if m1 == m2: return None
+    b = b2 - b1
+    m = m1 - m2
+    x = b/m
+    y = m1 * x + b1
+    return (x, y)
+
+
+
+print(didIntersect(line1, line2))
