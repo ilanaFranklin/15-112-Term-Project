@@ -17,7 +17,7 @@ endTemp = None
 
 
 def drawWebLine(canvas, startCoord, endCoord):
-    pygame.draw.line(canvas, (0, 0, 0), startCoord, endCoord, 3)
+    pygame.draw.aaline(canvas, (0, 0, 0), startCoord, endCoord, 3)
 
 
 def lineLength(startCoord, endCoord):
@@ -49,14 +49,14 @@ while not gameExit:
     if drawingLine:
         drawWebLine(gameDisplay, startTemp, pygame.mouse.get_pos())
     applyWind(wind, ropeList)
-    wind = random.randint(50, 300)  # Simulate wind speeds
+    wind = random.randint(-800, -50)  # Simulate wind speeds
 
     print(wind)
     for rope in ropeList:
         rope.updateRope()
         rope.drawRope(gameDisplay)
     pygame.display.update()
-    clock.tick(75)
+    clock.tick(50)
 
 pygame.quit
 quit
