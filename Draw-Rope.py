@@ -53,7 +53,7 @@ while not gameExit:
     if drawingLine:
         drawWebLine(gameDisplay, startTemp, pygame.mouse.get_pos())
     applyWind(wind, ropeList)
-    wind = random.randint(-800, -50)  # Simulate wind speeds
+    wind = random.randint(-500, -50)  # Simulate wind speeds
     for rope in ropeList:
         rope.updateRope()
         rope.drawRope(gameDisplay)
