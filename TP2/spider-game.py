@@ -7,7 +7,7 @@ import copy
 """
 When game starts, press space to generate a new tree. If you see one that you
 like, press enter to begin the game. Click on tree branches to draw spider webs.
-You only have a limited amount of webbing.
+You only have a limited amount of webbing. Use arrow keys to move tree.
 """
 ##########################################################################
 # Helper Functions
@@ -347,7 +347,7 @@ class Bug(object):
             self.depth = random.randint(0, 5)
 
     def drawBug(self, gameDisplay):
-        pygame.draw.circle(gameDisplay, (244, 185, 66),
+        pygame.draw.circle(gameDisplay, (201, 101, 68),
                            (self.x, self.y), self.radius)
 
     def checkWebCollision(self, gameDisplay):
@@ -388,7 +388,7 @@ def runSpiderGame(width=1000, height=600):
     font = pygame.font.Font(None, 40)
     wind = 0
     while not gameExit:
-        gameDisplay.fill((51, 123, 196))  # Make canvas white
+        gameDisplay.fill((136, 190, 216)) # Make canvas white
         if ropeSurface != None:
             ropeSurface.fill((0, 0, 0))
             for rope in ropeList:
@@ -405,6 +405,7 @@ def runSpiderGame(width=1000, height=600):
         gameDisplay.blit(score, (10, 10))
         gameDisplay.blit(speed, (10, 40))
         gameDisplay.blit(web, (10, 70))
+        pygame.draw.rect(gameDisplay, (0, 0, 0), ((0, tree.rect[0][1] + tree.rect[1][1]), (width, height)))
         for event in pygame.event.get():
             keys = pygame.key.get_pressed()
             if event.type == pygame.QUIT:
@@ -442,18 +443,18 @@ def runSpiderGame(width=1000, height=600):
                             for other in ropeList:
                                 newRope.solveIntersection(other)
                 if keys[pygame.K_RIGHT]:
-                    tree.changePos(10, 0)
+                    tree.changePos(-60, 0)
                 if keys[pygame.K_LEFT]:
-                    tree.changePos(-10, 0)
+                    tree.changePos(60, 0)
                 if keys[pygame.K_UP]:
-                    tree.changePos(0, -10)
+                    tree.changePos(0, 60)
                 if keys[pygame.K_DOWN]:
-                    tree.changePos(0, 10)
+                    tree.changePos(0, -60)
         for bug in bugList:
             bug.update()
             bug.checkWebCollision(gameDisplay)
             if bug.yVel == None:
-                webLevel += 0.5
+                webLevel += 1
             if bug.x > width or bug.yVel == None:
                 bugList.remove(bug)
         rand = random.randint(0, 20)
@@ -465,8 +466,6 @@ def runSpiderGame(width=1000, height=600):
             drawWebLine(gameDisplay, startTemp, pygame.mouse.get_pos())
         pygame.display.update()
         clock.tick(fps)
-
-
 #######################################################################
 # Main
 #######################################################################

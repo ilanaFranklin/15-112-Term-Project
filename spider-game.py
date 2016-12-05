@@ -146,7 +146,6 @@ class Rope(object):
             # Reset the forces
             node.xForce = 0
             node.yForce = 0
-
             node.applyYForce(2 * node.mass)
             node.applyXForce(self.wind)
         for spring in self.springList:
@@ -347,7 +346,7 @@ class Bug(object):
             self.depth = random.randint(0, 5)
 
     def drawBug(self, gameDisplay):
-        pygame.draw.circle(gameDisplay, (244, 185, 66),
+        pygame.draw.circle(gameDisplay, (201, 101, 68),
                            (self.x, self.y), self.radius)
 
     def checkWebCollision(self, gameDisplay):
@@ -364,111 +363,154 @@ class Bug(object):
 #######################################################################
 # Main Game Function
 #######################################################################
-
-
-def runSpiderGame(width=1000, height=600):
-    pygame.init()
-    pygame.font.init()
-    gameDisplay = pygame.display.set_mode((width, height))
-    pygame.display.set_caption("Spider Game")
-    gameExit = False
-    clock = pygame.time.Clock()
-    fps = 50  # Frames per second
+class SpiderGame(object):
     TREE_SELECTION = 0
     GAME_SCREEN = 1
-    mode = TREE_SELECTION
-    tree = treeDrawing((width // 2, height - 100), random.randint(6, 8))
-    ropeList = []
-    ropeSurface = None
-    drawingLine = False
-    bugList = []
-    webLevel = 30
-    for i in range(6):
-        bugList.append(Bug(-5, random.randint(0, height), 1))
-    font = pygame.font.Font(None, 40)
-    wind = 0
-    while not gameExit:
-        gameDisplay.fill((51, 123, 196))  # Make canvas white
-        if ropeSurface != None:
-            ropeSurface.fill((0, 0, 0))
-            for rope in ropeList:
-                rope.updateRope()
-                rope.drawRope(ropeSurface)
-            gameDisplay.blit(ropeSurface, (tree.findRect()[0]))
-        for bug in bugList:
-            bug.drawBug(gameDisplay)
-        tree.drawTree(gameDisplay)
-        score = font.render(
+
+    def __init__(self, width=1000, height=600):
+        pygame.init()
+        self.font = pygame.font.Font(None, 40)
+        self.width = width
+        self.height = height
+        self.fps = 50
+        self.mode = SpiderGame.TREE_SELECTION
+        self.ropeList = []
+        self.bugList = []
+        self.ropeSurface = None
+        self.wind = 0
+        self.windMax = 300
+        self.windMin = 50
+        self.webLevel = 30
+        self.tree = treeDrawing(
+            (width // 2, height - 100), random.randint(6, 8))
+        self.gameDisplay = pygame.display.set_mode((width, height))
+        pygame.display.set_caption("Spider Game")
+        self.runGame()
+
+    def runGame(self):
+        self.gameExit = False
+        clock = pygame.time.Clock()
+        self.drawingLine = False
+        while not self.gameExit:
+            self.gameDisplay.fill((136, 190, 216))
+            # DRAW ELEMENTS
+            self.updateRopes()
+            self.drawTree()
+            self.drawBugs()
+            self.drawScore()
+            self.drawGround()
+            # CHECK ALL EVENTS
+            self.checkEvents()
+            # UPDATE OBJECT STATES
+            self.updateBugs()
+            self.setWind()
+            self.drawLine()
+            pygame.display.update()
+            clock.tick(self.fps)
+
+    def drawTree(self):
+        self.tree.drawTree(self.gameDisplay)
+
+    def drawBugs(self):
+        for bug in self.bugList:
+            bug.drawBug(self.gameDisplay)
+
+    def drawGround(self):
+        pygame.draw.rect(self.gameDisplay, (0, 0, 0), ((0, self.tree.rect[0][
+                         1] + self.tree.rect[1][1]), (self.width, self.height)))
+
+    def updateBugs(self):
+        for bug in self.bugList:
+            bug.update()
+            bug.checkWebCollision(self.gameDisplay)
+            if bug.yVel is None:
+                self.webLevel += 1
+            if bug.x > self.width or bug.yVel is None:
+                self.bugList.remove(bug)
+        rand = random.randint(0, 20)
+        if rand == 10:
+            self.bugList.append(Bug(-5, random.randint(0, self.height), 1))
+
+    def drawScore(self):
+        score = self.font.render(
             "Bugs Caught: " + str(Bug.bugsCaught), True, (255, 0, 0))
-        speed = font.render("Wind Speed: " + str(wind), True, (255, 0, 0))
-        web = font.render("Web Remaining: " + str(webLevel), True, (255, 0, 0))
-        gameDisplay.blit(score, (10, 10))
-        gameDisplay.blit(speed, (10, 40))
-        gameDisplay.blit(web, (10, 70))
-        pygame.draw.rect(gameDisplay, (0, 0, 0), ((0, tree.rect[0][1] + tree.rect[1][1]), (width, height)))
+        speed = self.font.render(
+            "Wind Speed: " + str(self.wind), True, (255, 0, 0))
+        web = self.font.render("Web Remaining: " +
+                               str(self.webLevel), True, (255, 0, 0))
+        self.gameDisplay.blit(score, (10, 10))
+        self.gameDisplay.blit(speed, (10, 40))
+        self.gameDisplay.blit(web, (10, 70))
+
+    def updateRopes(self):
+        if self.ropeSurface is not None:
+            self.ropeSurface.fill((0, 0, 0))
+            for rope in self.ropeList:
+                rope.updateRope()
+                rope.drawRope(self.ropeSurface)
+            self.gameDisplay.blit(self.ropeSurface, (self.tree.findRect()[0]))
+
+    def setWind(self):
+        self.wind = random.randint(self.windMin, self.windMax)
+        Rope.applyWind(self.wind, self.ropeList)
+
+    def treeSelectionEvents(self, keys):
+        if keys[pygame.K_SPACE]:
+            self.tree = treeDrawing(
+                (self.width // 2, self.height - 100), random.randint(6, 8))
+        elif keys[pygame.K_RETURN]:
+            self.tree.scaleTree(3)
+            self.tree.changePos(50, 300)
+            self.ropeSurface = pygame.Surface(self.tree.findRect()[1])
+            self.ropeSurface.set_colorkey((0, 0, 0))
+            self.mode = SpiderGame.GAME_SCREEN
+
+    def gameScreenEvents(self, event, keys):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.gameDisplay.get_at(pygame.mouse.get_pos()) == (0, 0, 0, 255):
+                if not self.drawingLine:
+                    self.drawingLine = True
+                    self.startTemp = pygame.mouse.get_pos()
+                else:
+                    self.drawingLine = False
+                    endTemp = pygame.mouse.get_pos()
+                    startX = self.startTemp[0] - self.tree.rect[0][0]
+                    startY = self.startTemp[1] - self.tree.rect[0][1]
+                    endX = endTemp[0] - self.tree.rect[0][0]
+                    endY = endTemp[1] - self.tree.rect[0][1]
+                    numNodes = int(getLineLength(self.startTemp[0],
+                                                 self.startTemp[1], endTemp[0], endTemp[1]) * 0.07)
+                    if numNodes > 0 and numNodes <= self.webLevel:
+                        newRope = Rope(numNodes, startX, startY,
+                                       endX, endY)
+                        self.ropeList.append(newRope)
+                        self.webLevel -= numNodes
+                        for other in self.ropeList:
+                            newRope.solveIntersection(other)
+        if keys[pygame.K_RIGHT]:
+            self.tree.changePos(-60, 0)
+        if keys[pygame.K_LEFT]:
+            self.tree.changePos(60, 0)
+        if keys[pygame.K_UP]:
+            self.tree.changePos(0, 60)
+        if keys[pygame.K_DOWN]:
+            self.tree.changePos(0, -60)
+
+    def checkEvents(self):
         for event in pygame.event.get():
             keys = pygame.key.get_pressed()
             if event.type == pygame.QUIT:
-                gameExit = True
-            elif mode == TREE_SELECTION:
-                if keys[pygame.K_SPACE]:
-                    tree = treeDrawing((width // 2, height - 100),
-                                       random.randint(6, 8))
-                elif keys[pygame.K_RETURN]:
-                    tree.scaleTree(3)
-                    tree.changePos(50, 300)
-                    ropeSurface = pygame.Surface(tree.findRect()[1])
-                    ropeSurface.set_colorkey((0, 0, 0))
-                    mode = GAME_SCREEN
-            elif mode == GAME_SCREEN:
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    if gameDisplay.get_at(pygame.mouse.get_pos()) == (0, 0, 0, 255):
-                        if not drawingLine:
-                            drawingLine = True
-                            startTemp = pygame.mouse.get_pos()
-                        else:
-                            drawingLine = False
-                            endTemp = pygame.mouse.get_pos()
-                            startX = startTemp[0] - tree.rect[0][0]
-                            startY = startTemp[1] - tree.rect[0][1]
-                            endX = endTemp[0] - tree.rect[0][0]
-                            endY = endTemp[1] - tree.rect[0][1]
-                            numNodes = int(getLineLength(startTemp[0], startTemp[
-                                           1], endTemp[0], endTemp[1]) * 0.07)
-                            if numNodes > 0 and numNodes <= webLevel:
-                                newRope = Rope(numNodes, startX, startY,
-                                               endX, endY)
-                                ropeList.append(newRope)
-                                webLevel -= numNodes
-                            for other in ropeList:
-                                newRope.solveIntersection(other)
-                if keys[pygame.K_RIGHT]:
-                    tree.changePos(-60, 0)
-                if keys[pygame.K_LEFT]:
-                    tree.changePos(60, 0)
-                if keys[pygame.K_UP]:
-                    tree.changePos(0, 60)
-                if keys[pygame.K_DOWN]:
-                    tree.changePos(0, -60)
-        for bug in bugList:
-            bug.update()
-            bug.checkWebCollision(gameDisplay)
-            if bug.yVel == None:
-                webLevel += 0.5
-            if bug.x > width or bug.yVel == None:
-                bugList.remove(bug)
-        rand = random.randint(0, 20)
-        if rand == 10:
-            bugList.append(Bug(-5, random.randint(0, height), 1))
-        wind = random.randint(50, 300)
-        Rope.applyWind(wind, ropeList)
-        if drawingLine:
-            drawWebLine(gameDisplay, startTemp, pygame.mouse.get_pos())
-        pygame.display.update()
-        clock.tick(fps)
+                self.gameExit = True
+            elif self.mode == SpiderGame.TREE_SELECTION:
+                self.treeSelectionEvents(keys)
+            elif self.mode == SpiderGame.GAME_SCREEN:
+                self.gameScreenEvents(event, keys)
 
+    def drawLine(self):
+        if self.drawingLine:
+            drawWebLine(self.gameDisplay, self.startTemp, pygame.mouse.get_pos())
 
 #######################################################################
 # Main
 #######################################################################
-runSpiderGame()
+game = SpiderGame()
