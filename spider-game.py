@@ -201,7 +201,6 @@ class Rope(object):
             self.startNode.x, self.startNode.y, points[0], points[1])
         selfInsert = int((selfRatio * len(self.nodeList)) / selfDiff)
         prevNode = selfInsert - 1
-        nextNode = selfInsert + 1
         self.nodeList.insert(selfInsert, temp)
         self.springList.append(Spring(self.nodeList[prevNode], temp))
         # Calculate the location to insert new node on other rope
@@ -213,39 +212,81 @@ class Rope(object):
         other.springList.append(Spring(other.nodeList[otherInsert - 1], temp))
 
 
+class BranchPolygon(object):
+
+    def __init__(self, branch):
+        self.branch = branch
+        if branch.orig is None:
+            self.baseWidth = branch.depth * 2
+        else:
+            self.baseWidth = branch.orig.polygon.endWidth
+        if branch.depth == 1:
+            self.endWidth = 0
+        else:
+            self.endWidth = branch.depth * 1
+            if self.endWidth < 2:
+                self.endWidth = 3
+        self.pointList = self.calcPoints()
+
+    def calcPoints(self):
+        baseLeft = [self.branch.start[0] -
+                    self.baseWidth // 2,  self.branch.start[1]]
+        baseRight = [self.branch.start[0] +
+                     self.baseWidth // 2,  self.branch.start[1]]
+        endLeft = [self.branch.end[0] -
+                   self.endWidth // 2,  self.branch.end[1]]
+        endRight = [self.branch.end[0] +
+                    self.endWidth // 2,  self.branch.end[1]]
+        return [baseLeft, endLeft, endRight, baseRight]
+
+    def scale(self, scale):
+        self.baseWidth *= scale
+        self.endWidth *= scale
+        self.pointList = self.calcPoints()
+
+    def changePos(self, xChange, yChange):
+        for point in self.pointList:
+            point[0] += xChange
+            point[1] += yChange
+
+
+class Branch(object):
+
+    def __init__(self, start, end, orig, length, angle, depth):
+        self.start = start
+        self.end = end
+        self.orig = orig
+        self.length = length
+        self.angle = angle
+        self.depth = depth
+        self.polygon = BranchPolygon(self)
+
+    def __repr__(self):
+        return "(" + str(self.start) + "," + str(self.end) + "," + str(self.length) + "," + str(self.angle) + "," + str(self.depth) + ")"
+
+    def draw(self, gameDisplay, color):
+        pygame.draw.aalines(gameDisplay, color, True, self.polygon.pointList)
+        pygame.draw.polygon(gameDisplay, color, self.polygon.pointList)
+
+
 class treeDrawing(object):
 
     @staticmethod
     def makeRecursiveTree(startPoint, numBranches):
         branchList = []
-        minX = startPoint[0]
-        maxX = startPoint[0]
-        minY = startPoint[1]
-        maxY = startPoint[1]
 
         def treeHelper(depth, startPoint, minLength, maxLength,
-                       angle=90 + random.randint(-5, 5)):
-            nonlocal minX
-            nonlocal minY
-            nonlocal maxX
-            nonlocal maxY
+                       angle=90 + random.randint(-5, 5), orig=None):
             if depth == 0:
                 return None
             else:
                 length = random.randint(minLength, maxLength)
                 endPoint = treeDrawing.calculateEndpoint(
                     startPoint, length, angle)
-                if endPoint[0] < minX:
-                    minX = endPoint[0]
-                elif endPoint[0] > maxX:
-                    maxX = endPoint[0]
-                if endPoint[1] < minY:
-                    minY = endPoint[1]
-                elif endPoint[1] > maxY:
-                    maxY = endPoint[1]
-                branchList.append([[int(startPoint[0]), int(startPoint[1])],
-                                   [endPoint[0], endPoint[1]],
-                                   length, angle, depth])
+                newBranch = Branch([int(startPoint[0]), int(startPoint[1])],
+                                   [endPoint[0], endPoint[1]], orig,
+                                   length, angle, depth)
+                branchList.append(newBranch)
                 if depth <= numBranches - 2:
                     rand = random.randint(0, 15)
                     if rand == 0:
@@ -253,15 +294,13 @@ class treeDrawing(object):
                 treeHelper(depth - 1, copy.copy(endPoint),
                            minLength - 10 if minLength > 20 else 20,
                            maxLength - 10 if maxLength > 40 else 40,
-                           angle + random.randint(10, 25))
+                           angle + random.randint(10, 25), newBranch)
                 treeHelper(depth - 1, copy.copy(endPoint),
                            minLength - 10 if minLength > 10 else 20,
                            maxLength - 10 if maxLength > 20 else 40,
-                           angle - random.randint(10, 25))
+                           angle - random.randint(10, 25), newBranch)
         treeHelper(numBranches, startPoint, 50, 100)
-        width = maxX - minX
-        height = maxY - minY
-        return [branchList, width, height, minX, minY]
+        return branchList
 
     @staticmethod
     def calculateEndpoint(startPoint, length, angle):
@@ -270,47 +309,63 @@ class treeDrawing(object):
         return [int(startPoint[0] + deltaX), int(startPoint[1] - deltaY)]
 
     def __init__(self, startPoint, numBranches):
-        temp = treeDrawing.makeRecursiveTree(startPoint, numBranches)
-        self.branches = temp[0]
+        self.branches = treeDrawing.makeRecursiveTree(startPoint, numBranches)
+        self.maxDepth = numBranches
+        branchFound = False
+        while not branchFound:
+            self.curBranch = self.branches[
+                random.randint(0, len(self.branches) - 1)]
+            if self.curBranch.depth == self.maxDepth - 1:
+                branchFound = True
         self.scale = 1
         self.rect = self.findRect()
 
     def scaleTree(self, factor):
         self.scale *= factor
         for branch in self.branches:
-            branch[2] *= self.scale
+            branch.length *= self.scale
             endpoint = treeDrawing.calculateEndpoint(
-                branch[0], branch[2], branch[3])
+                branch.start, branch.length, branch.angle)
             for altBranch in self.branches:
-                if altBranch[0] == branch[1]:
-                    altBranch[0] = copy.deepcopy(endpoint)
-            branch[1] = endpoint
+                if altBranch.start == branch.end:
+                    altBranch.start = copy.deepcopy(endpoint)
+            branch.end = endpoint
+            branch.polygon.scale(factor)
         self.rect = self.findRect()
 
     def changePos(self, xChange, yChange):
         for branch in self.branches:
-            branch[0][1] += yChange
-            branch[0][0] += xChange
-            branch[1][1] += yChange
-            branch[1][0] += xChange
+            branch.start[1] += yChange
+            branch.start[0] += xChange
+            branch.end[1] += yChange
+            branch.end[0] += xChange
+            branch.polygon.changePos(xChange, yChange)
         self.rect = self.findRect()
 
     def drawTree(self, gameDisplay):
+        black = (0, 0, 0)
+        yellow = (244, 78, 66)
+        uhh = (244, 66, 140)
         for branch in self.branches:
-            pygame.draw.line(gameDisplay, (0, 0, 0), branch[
-                             0], branch[1], int(branch[4] * self.scale * 2))
+            # if branch == self.curBranch:
+            #     color = yellow
+            # elif branch.orig == self.curBranch:
+            #     color = uhh
+            # else:
+            color = black
+            branch.draw(gameDisplay, color)
 
     def __repr__(self):
         return str(self.branches)
 
     def findRect(self):
-        minX = self.branches[0][0][0]
-        maxX = self.branches[0][0][0]
-        minY = self.branches[0][0][1]
-        maxY = self.branches[0][0][1]
+        minX = self.branches[0].start[0]
+        maxX = self.branches[0].start[0]
+        minY = self.branches[0].start[1]
+        maxY = self.branches[0].start[1]
         for branch in self.branches:
-            x = branch[1][0]
-            y = branch[1][1]
+            x = branch.end[0]
+            y = branch.end[1]
             if x < minX:
                 minX = x
             elif x > maxX:
@@ -335,7 +390,7 @@ class Bug(object):
 
     def update(self):
         self.x += self.xVel
-        if self.yVel != None:
+        if self.yVel is not None:
             self.y -= self.yVel
             if self.yVel < -5:
                 self.yVel += random.randint(-1, 8)
@@ -350,7 +405,8 @@ class Bug(object):
                            (self.x, self.y), self.radius)
 
     def checkWebCollision(self, gameDisplay):
-        if self.x > 0 and self.x < gameDisplay.get_width() and self.y > 0 and self.y < gameDisplay.get_height():
+        if (self.x > 0 and self.x < gameDisplay.get_width() and
+                self.y > 0 and self.y < gameDisplay.get_height()):
             if gameDisplay.get_at((self.x, self.y)) == (255, 255, 255, 255):
                 self.yVel = None
                 self.xVel = 0
@@ -360,19 +416,62 @@ class Bug(object):
         return hash((self.x, self.y, self.xVel, self.yVel))
 
 
+class Hill(object):
+
+    def __init__(self, midpoint, width, height, color=(0, 0, 0)):
+        self.width = width
+        self.height = height
+        self.midpoint = midpoint
+        self.color = color
+        self.calculatePoints()
+
+    def calculatePoints(self):
+        self.startX = self.midpoint[0] - self.width // 2
+        self.startY = self.midpoint[1]
+
+    def scale(self, midpoint, scale):
+        self.midpoint = midpoint
+        self.width *= scale
+        self.height *= scale
+        self.calculatePoints()
+
+    def changePos(self, midpoint):
+        self.midpoint = midpoint
+        self.calculatePoints()
+
+    def drawHill(self, gameDisplay):
+        pygame.draw.ellipse(gameDisplay, self.color, ((
+            self.startX, self.startY), (self.width, self.height)))
+
+
+class Spider(object):
+
+    def __init__(self, startPoint):
+        self.r = 5
+        self.x = startPoint[0]
+        self.y = startPoint[1]
+
+    def draw(self, gameDisplay):
+        pygame.draw.circle(gameDisplay, (244, 164, 66),
+                           (self.x, self.y), self.r)
+
+
 #######################################################################
 # Main Game Function
 #######################################################################
+
+
 class SpiderGame(object):
     TREE_SELECTION = 0
     GAME_SCREEN = 1
+    DRAW_WEB = 2
 
     def __init__(self, width=1000, height=600):
         pygame.init()
         self.font = pygame.font.Font(None, 40)
         self.width = width
         self.height = height
-        self.fps = 50
+        self.fps = 150
         self.mode = SpiderGame.TREE_SELECTION
         self.ropeList = []
         self.bugList = []
@@ -385,6 +484,8 @@ class SpiderGame(object):
             (width // 2, height - 100), random.randint(6, 8))
         self.gameDisplay = pygame.display.set_mode((width, height))
         pygame.display.set_caption("Spider Game")
+        self.spider = Spider(self.tree.branches[0].start)
+        self.ground = Hill(self.tree.branches[0].start, width, height)
         self.runGame()
 
     def runGame(self):
@@ -399,6 +500,7 @@ class SpiderGame(object):
             self.drawBugs()
             self.drawScore()
             self.drawGround()
+            self.drawSpider()
             # CHECK ALL EVENTS
             self.checkEvents()
             # UPDATE OBJECT STATES
@@ -416,8 +518,10 @@ class SpiderGame(object):
             bug.drawBug(self.gameDisplay)
 
     def drawGround(self):
-        pygame.draw.rect(self.gameDisplay, (0, 0, 0), ((0, self.tree.rect[0][
-                         1] + self.tree.rect[1][1]), (self.width, self.height)))
+        self.ground.drawHill(self.gameDisplay)
+
+    def drawSpider(self):
+        self.spider.draw(self.gameDisplay)
 
     def updateBugs(self):
         for bug in self.bugList:
@@ -427,7 +531,7 @@ class SpiderGame(object):
                 self.webLevel += 1
             if bug.x > self.width or bug.yVel is None:
                 self.bugList.remove(bug)
-        rand = random.randint(0, 20)
+        rand = random.randint(0, 40)
         if rand == 10:
             self.bugList.append(Bug(-5, random.randint(0, self.height), 1))
 
@@ -459,13 +563,14 @@ class SpiderGame(object):
             self.tree = treeDrawing(
                 (self.width // 2, self.height - 100), random.randint(6, 8))
         elif keys[pygame.K_RETURN]:
-            self.tree.scaleTree(3)
-            self.tree.changePos(50, 300)
+            # self.spider = Spider(self.tree.branches[0].start)
+            self.tree.scaleTree(3.5)
+            self.ground.scale(self.tree.branches[0].start, 3.5)
             self.ropeSurface = pygame.Surface(self.tree.findRect()[1])
             self.ropeSurface.set_colorkey((0, 0, 0))
             self.mode = SpiderGame.GAME_SCREEN
 
-    def gameScreenEvents(self, event, keys):
+    def drawWebEvents(self, event, keys):
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.gameDisplay.get_at(pygame.mouse.get_pos()) == (0, 0, 0, 255):
                 if not self.drawingLine:
@@ -479,7 +584,7 @@ class SpiderGame(object):
                     endX = endTemp[0] - self.tree.rect[0][0]
                     endY = endTemp[1] - self.tree.rect[0][1]
                     numNodes = int(getLineLength(self.startTemp[0],
-                                                 self.startTemp[1], endTemp[0], endTemp[1]) * 0.07)
+                               self.startTemp[1], endTemp[0], endTemp[1]) * 0.07)
                     if numNodes > 0 and numNodes <= self.webLevel:
                         newRope = Rope(numNodes, startX, startY,
                                        endX, endY)
@@ -487,14 +592,24 @@ class SpiderGame(object):
                         self.webLevel -= numNodes
                         for other in self.ropeList:
                             newRope.solveIntersection(other)
+        if keys[pygame.K_ESCAPE]:
+            self.mode = SpiderGame.GAME_SCREEN
+
+    def gameScreenEvents(self, event, keys):
+        if keys[pygame.K_w]:
+            self.mode = SpiderGame.DRAW_WEB
         if keys[pygame.K_RIGHT]:
             self.tree.changePos(-60, 0)
-        if keys[pygame.K_LEFT]:
+            self.ground.changePos(self.tree.branches[0].start)
+        elif keys[pygame.K_LEFT]:
             self.tree.changePos(60, 0)
-        if keys[pygame.K_UP]:
+            self.ground.changePos(self.tree.branches[0].start)
+        elif keys[pygame.K_UP]:
             self.tree.changePos(0, 60)
-        if keys[pygame.K_DOWN]:
+            self.ground.changePos(self.tree.branches[0].start)
+        elif keys[pygame.K_DOWN]:
             self.tree.changePos(0, -60)
+            self.ground.changePos(self.tree.branches[0].start)
 
     def checkEvents(self):
         for event in pygame.event.get():
@@ -505,10 +620,13 @@ class SpiderGame(object):
                 self.treeSelectionEvents(keys)
             elif self.mode == SpiderGame.GAME_SCREEN:
                 self.gameScreenEvents(event, keys)
+            elif self.mode == SpiderGame.DRAW_WEB:
+                self.drawWebEvents(event, keys)
 
     def drawLine(self):
         if self.drawingLine:
-            drawWebLine(self.gameDisplay, self.startTemp, pygame.mouse.get_pos())
+            drawWebLine(self.gameDisplay, self.startTemp,
+                        pygame.mouse.get_pos())
 
 #######################################################################
 # Main
