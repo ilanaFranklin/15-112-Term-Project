@@ -2,28 +2,45 @@ import pygame
 import math
 import random
 import copy
+import queue
 ##########################################################################
 # Tutorial
 """
 When game starts, press space to generate a new tree. If you see one that you
-like, press enter to begin the game. Click on tree branches to draw spider webs.
-You only have a limited amount of webbing. Use arrow keys to move tree.
+like, press enter to begin the game. Click on tree branches to draw spider webs
+You only have a limited amount of webbing.
 """
 ##########################################################################
 # Helper Functions
 ##########################################################################
-# Get length of a line segment with endpoints
 
 
 def getLineLength(x0, y0, x1, y1):
+    # Get length of a line segment with endpoints
     return math.sqrt((x1 - x0)**2 + (y1 - y0)**2)
 
 
 def drawWebLine(canvas, startCoord, endCoord):
     pygame.draw.line(canvas, (150, 150, 150), startCoord, endCoord, 3)
+
+# Line intersection code taken from
+# http://stackoverflow.com/questions/3838329/how-can-i-check-if-two-segments-intersect
+
+
+def ccw(A, B, C):
+    return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
+
+
+# Return true if line segments AB and CD intersect
+def doesIntersect(A, B, C, D):
+    return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
+
 ##########################################################################
 # Classes
 ##########################################################################
+
+# Rope Classes
 
 
 class Node(object):
@@ -211,6 +228,8 @@ class Rope(object):
         other.nodeList.insert(otherInsert, temp)
         other.springList.append(Spring(other.nodeList[otherInsert - 1], temp))
 
+# Tree Classes
+
 
 class BranchPolygon(object):
 
@@ -229,15 +248,15 @@ class BranchPolygon(object):
         self.pointList = self.calcPoints()
 
     def calcPoints(self):
-        baseLeft = [self.branch.start[0] -
-                    self.baseWidth // 2,  self.branch.start[1]]
-        baseRight = [self.branch.start[0] +
-                     self.baseWidth // 2,  self.branch.start[1]]
-        endLeft = [self.branch.end[0] -
-                   self.endWidth // 2,  self.branch.end[1]]
-        endRight = [self.branch.end[0] +
-                    self.endWidth // 2,  self.branch.end[1]]
-        return [baseLeft, endLeft, endRight, baseRight]
+        self.baseLeft = [self.branch.start[0] -
+                         self.baseWidth // 2,  self.branch.start[1]]
+        self.baseRight = [self.branch.start[0] +
+                          self.baseWidth // 2,  self.branch.start[1]]
+        self.endLeft = [self.branch.end[0] -
+                        self.endWidth // 2,  self.branch.end[1]]
+        self.endRight = [self.branch.end[0] +
+                         self.endWidth // 2,  self.branch.end[1]]
+        return [self.baseLeft, self.endLeft, self.endRight, self.baseRight]
 
     def scale(self, scale):
         self.baseWidth *= scale
@@ -248,6 +267,20 @@ class BranchPolygon(object):
         for point in self.pointList:
             point[0] += xChange
             point[1] += yChange
+
+    def pointInPolygon(self, point):
+        x, y = point[0], point[1]
+        if y > self.baseLeft[1] or y < self.endLeft[1]:
+            return False
+        line3 = ((x, y), (x + 200, y))
+        line1 = (self.baseLeft, self.endLeft)
+        line2 = (self.baseRight, self.endRight)
+        sum = 1 if doesIntersect(line1[0], line1[1], line3[0], line3[1]) else 0
+        sum += 1 if doesIntersect(line2[0],
+                                  line2[1], line3[0], line3[1]) else 0
+        if sum == 1:
+            return True
+        return False
 
 
 class Branch(object):
@@ -262,11 +295,16 @@ class Branch(object):
         self.polygon = BranchPolygon(self)
 
     def __repr__(self):
-        return "(" + str(self.start) + "," + str(self.end) + "," + str(self.length) + "," + str(self.angle) + "," + str(self.depth) + ")"
+        return "(" + str(self.start) + "," + str(self.end) + "," \
+            + str(self.length) + "," + str(self.angle) \
+            + "," + str(self.depth) + ")"
 
     def draw(self, gameDisplay, color):
         pygame.draw.aalines(gameDisplay, color, True, self.polygon.pointList)
         pygame.draw.polygon(gameDisplay, color, self.polygon.pointList)
+
+    def inBranch(self, point):
+        return self.polygon.pointInPolygon(point)
 
 
 class treeDrawing(object):
@@ -299,8 +337,11 @@ class treeDrawing(object):
                            minLength - 10 if minLength > 10 else 20,
                            maxLength - 10 if maxLength > 20 else 40,
                            angle - random.randint(10, 25), newBranch)
-        treeHelper(numBranches, startPoint, 50, 100)
+        treeHelper(numBranches, startPoint, 30, 60)
         return branchList
+
+    def pointOnBranch(self, point):
+        for
 
     @staticmethod
     def calculateEndpoint(startPoint, length, angle):
@@ -312,11 +353,14 @@ class treeDrawing(object):
         self.branches = treeDrawing.makeRecursiveTree(startPoint, numBranches)
         self.maxDepth = numBranches
         branchFound = False
+        self.availableBranches = []
         while not branchFound:
-            self.curBranch = self.branches[
+            curBranch = self.branches[
                 random.randint(0, len(self.branches) - 1)]
-            if self.curBranch.depth == self.maxDepth - 1:
+            if curBranch.depth == self.maxDepth - 1:
                 branchFound = True
+        self.availableBranches.append(curBranch)
+        self.availableBranches.append(self.branches[0])
         self.scale = 1
         self.rect = self.findRect()
 
@@ -344,16 +388,13 @@ class treeDrawing(object):
 
     def drawTree(self, gameDisplay):
         black = (0, 0, 0)
-        yellow = (244, 78, 66)
-        uhh = (244, 66, 140)
+        pink = (244, 66, 110)
         for branch in self.branches:
-            # if branch == self.curBranch:
-            #     color = yellow
-            # elif branch.orig == self.curBranch:
-            #     color = uhh
-            # else:
-            color = black
-            branch.draw(gameDisplay, color)
+            if branch in self.availableBranches:
+                continue
+            branch.draw(gameDisplay, black)
+        for branch in self.availableBranches:
+            branch.draw(gameDisplay, pink)
 
     def __repr__(self):
         return str(self.branches)
@@ -375,6 +416,8 @@ class treeDrawing(object):
             elif y > maxY:
                 maxY = y
         return ((minX, minY), (maxX - minX, maxY - minY))
+
+# Other Classes
 
 
 class Bug(object):
@@ -446,14 +489,63 @@ class Hill(object):
 
 class Spider(object):
 
+    @staticmethod
+    def findAdjacent(point, closedList, availableBranches, gameDisplay):
+        pointList = []
+        for xdir in [-1, 0, 1]:
+            for ydir in [-1, 0, 1]:
+                newPoint = (point[0] + xdir, point[1] + ydir)
+                onBranch = False
+                for branch in availableBranches:
+                    if branch.inBranch(newPoint):
+                        onBranch = True
+                if onBranch and newPoint not in closedList:
+                    pointList.append(newPoint)
+        return pointList
+
+    @staticmethod
+    def fScore(checkPoint, target):
+        return abs(target[0] - checkPoint[0]) + abs(checkPoint[1] - target[1])
+
     def __init__(self, startPoint):
         self.r = 5
+        self.startX = startPoint[0]
+        self.startY = startPoint[1]
         self.x = startPoint[0]
         self.y = startPoint[1]
+        self.curMovements = []
 
     def draw(self, gameDisplay):
         pygame.draw.circle(gameDisplay, (244, 164, 66),
-                           (self.x, self.y), self.r)
+                           (self.startX, self.startY), self.r)
+
+    def move(self, target, availableBranches, gameDisplay):
+        # Uses A* Pathfinding Algorithm
+        closedList = [(self.x, self.y)]
+
+        moveList = []
+        pathFound = False
+        while not pathFound:
+            start = closedList[len(closedList) - 1]
+            openList = Spider.findAdjacent(
+                start, closedList, availableBranches, gameDisplay)
+            if len(openList) == 0:
+                moveList = []
+                break
+            lowestFScore = Spider.fScore(openList[0], target)
+            bestPoint = openList[0]
+            for point in openList:
+                f = Spider.fScore(point, target)
+                if f < lowestFScore:
+                    bestPoint = point
+                    lowestFScore = f
+            closedList.append(bestPoint)
+            moveList.append((start[0] - bestPoint[0], start[1] - bestPoint[1]))
+            if (abs(bestPoint[0] - target[0]) <= 1 and
+                    abs(bestPoint[1] - target[1]) <= 1):
+                pathFound = True
+        self.curMovements = moveList
+
 
 
 #######################################################################
@@ -462,6 +554,7 @@ class Spider(object):
 
 
 class SpiderGame(object):
+    # Game Modes
     TREE_SELECTION = 0
     GAME_SCREEN = 1
     DRAW_WEB = 2
@@ -486,6 +579,8 @@ class SpiderGame(object):
         pygame.display.set_caption("Spider Game")
         self.spider = Spider(self.tree.branches[0].start)
         self.ground = Hill(self.tree.branches[0].start, width, height)
+        self.treeX = 0
+        self.treeY = 0
         self.runGame()
 
     def runGame(self):
@@ -507,6 +602,7 @@ class SpiderGame(object):
             self.updateBugs()
             self.setWind()
             self.drawLine()
+            self.updateSpider()
             pygame.display.update()
             clock.tick(self.fps)
 
@@ -522,6 +618,13 @@ class SpiderGame(object):
 
     def drawSpider(self):
         self.spider.draw(self.gameDisplay)
+
+    def updateSpider(self):
+        if len(self.spider.curMovements) > 0:
+            self.tree.changePos(self.spider.curMovements[0][0],
+                                self.spider.curMovements[0][1])
+            self.spider.curMovements.pop(0)
+            self.ground.changePos(self.tree.branches[0].start)
 
     def updateBugs(self):
         for bug in self.bugList:
@@ -563,20 +666,32 @@ class SpiderGame(object):
             self.tree = treeDrawing(
                 (self.width // 2, self.height - 100), random.randint(6, 8))
         elif keys[pygame.K_RETURN]:
-            # self.spider = Spider(self.tree.branches[0].start)
+            self.spider = Spider(self.tree.branches[0].start)
             self.tree.scaleTree(3.5)
             self.ground.scale(self.tree.branches[0].start, 3.5)
+            self.spider.move((self.tree.availableBranches[0].start[0],
+                              self.tree.availableBranches[0].start[1]),
+                             self.tree.availableBranches,
+                             self.gameDisplay)
             self.ropeSurface = pygame.Surface(self.tree.findRect()[1])
             self.ropeSurface.set_colorkey((0, 0, 0))
             self.mode = SpiderGame.GAME_SCREEN
 
+    def pointInAvailableBranches(self, point):
+        for branch in self.tree.availableBranches:
+            if branch.inBranch(point):
+                return True
+        return False
+
     def drawWebEvents(self, event, keys):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.gameDisplay.get_at(pygame.mouse.get_pos()) == (0, 0, 0, 255):
+            if self.pointInAvailableBranches(pygame.mouse.get_pos()):
                 if not self.drawingLine:
                     self.drawingLine = True
                     self.startTemp = pygame.mouse.get_pos()
-                else:
+            if self.gameDisplay.get_at(pygame.mouse.get_pos()) == \
+                    (0, 0, 0, 255):
+                if self.drawingLine:
                     self.drawingLine = False
                     endTemp = pygame.mouse.get_pos()
                     startX = self.startTemp[0] - self.tree.rect[0][0]
@@ -584,7 +699,9 @@ class SpiderGame(object):
                     endX = endTemp[0] - self.tree.rect[0][0]
                     endY = endTemp[1] - self.tree.rect[0][1]
                     numNodes = int(getLineLength(self.startTemp[0],
-                               self.startTemp[1], endTemp[0], endTemp[1]) * 0.07)
+                                                 self.startTemp[1],
+                                                 endTemp[0],
+                                                 endTemp[1]) * 0.07)
                     if numNodes > 0 and numNodes <= self.webLevel:
                         newRope = Rope(numNodes, startX, startY,
                                        endX, endY)
@@ -592,24 +709,20 @@ class SpiderGame(object):
                         self.webLevel -= numNodes
                         for other in self.ropeList:
                             newRope.solveIntersection(other)
+                    for branch in self.tree.branches:
+                        if branch.inBranch(endTemp):
+                            self.tree.availableBranches.append(branch)
         if keys[pygame.K_ESCAPE]:
             self.mode = SpiderGame.GAME_SCREEN
 
     def gameScreenEvents(self, event, keys):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.pointInAvailableBranches(pygame.mouse.get_pos()):
+                self.spider.move(pygame.mouse.get_pos(),
+                                 self.tree.availableBranches,
+                                 self.gameDisplay)
         if keys[pygame.K_w]:
             self.mode = SpiderGame.DRAW_WEB
-        if keys[pygame.K_RIGHT]:
-            self.tree.changePos(-60, 0)
-            self.ground.changePos(self.tree.branches[0].start)
-        elif keys[pygame.K_LEFT]:
-            self.tree.changePos(60, 0)
-            self.ground.changePos(self.tree.branches[0].start)
-        elif keys[pygame.K_UP]:
-            self.tree.changePos(0, 60)
-            self.ground.changePos(self.tree.branches[0].start)
-        elif keys[pygame.K_DOWN]:
-            self.tree.changePos(0, -60)
-            self.ground.changePos(self.tree.branches[0].start)
 
     def checkEvents(self):
         for event in pygame.event.get():
