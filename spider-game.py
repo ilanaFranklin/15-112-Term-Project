@@ -2,7 +2,7 @@ import pygame
 import math
 import random
 import copy
-import queue
+import os
 ##########################################################################
 # Tutorial
 """
@@ -34,6 +34,10 @@ def ccw(A, B, C):
 # Return true if line segments AB and CD intersect
 def doesIntersect(A, B, C, D):
     return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
+
+def getCenter(width, surface):
+    return width//2 - surface.get_width()//2
 
 
 ##########################################################################
@@ -341,7 +345,8 @@ class treeDrawing(object):
         return branchList
 
     def pointOnBranch(self, point):
-        for
+        for branch in self.availableBranches:
+            if branch.inBranch(point): return branch
 
     @staticmethod
     def calculateEndpoint(startPoint, length, angle):
@@ -388,13 +393,14 @@ class treeDrawing(object):
 
     def drawTree(self, gameDisplay):
         black = (0, 0, 0)
-        pink = (244, 66, 110)
+        red = (204, 160, 36)
+        # red = (200, 200, 200)
         for branch in self.branches:
-            if branch in self.availableBranches:
-                continue
-            branch.draw(gameDisplay, black)
+            if branch not in self.availableBranches:
+                branch.draw(gameDisplay, black)
         for branch in self.availableBranches:
-            branch.draw(gameDisplay, pink)
+            newColor = (red[0], red[1] - 19*branch.depth, red[2])
+            branch.draw(gameDisplay, newColor)
 
     def __repr__(self):
         return str(self.branches)
@@ -417,6 +423,23 @@ class treeDrawing(object):
                 maxY = y
         return ((minX, minY), (maxX - minX, maxY - minY))
 
+    def path(self, startPoint, endPoint):
+        startBranch = self.pointOnBranch(startPoint)
+        endBranch = self.pointOnBranch(endPoint)
+        path = [endPoint]
+        sameBranch = (startBranch == endBranch)
+        while not sameBranch:
+            if endBranch.orig is None: break
+            if endBranch == startBranch.orig:
+                path.append(startBranch.start)
+                break
+            path.append(endBranch.start)
+            endBranch = endBranch.orig
+            sameBranch = (startBranch == endBranch)
+        path.reverse()
+        return path
+
+
 # Other Classes
 
 
@@ -426,7 +449,7 @@ class Bug(object):
     def __init__(self, x, y, direc):
         self.x = x
         self.y = y
-        self.xVel = random.randint(2, 5) * direc
+        self.xVel = random.randint(1, 3) * direc
         self.yVel = 0
         self.depth = random.randint(0, 5)
         self.radius = 3
@@ -490,7 +513,7 @@ class Hill(object):
 class Spider(object):
 
     @staticmethod
-    def findAdjacent(point, closedList, availableBranches, gameDisplay):
+    def findAdjacent(point, closedList, availableBranches):
         pointList = []
         for xdir in [-1, 0, 1]:
             for ydir in [-1, 0, 1]:
@@ -519,16 +542,14 @@ class Spider(object):
         pygame.draw.circle(gameDisplay, (244, 164, 66),
                            (self.startX, self.startY), self.r)
 
-    def move(self, target, availableBranches, gameDisplay):
+    def move(self, target, availableBranches):
         # Uses A* Pathfinding Algorithm
         closedList = [(self.x, self.y)]
-
         moveList = []
         pathFound = False
         while not pathFound:
             start = closedList[len(closedList) - 1]
-            openList = Spider.findAdjacent(
-                start, closedList, availableBranches, gameDisplay)
+            openList = Spider.findAdjacent(start, closedList, availableBranches)
             if len(openList) == 0:
                 moveList = []
                 break
@@ -541,12 +562,57 @@ class Spider(object):
                     lowestFScore = f
             closedList.append(bestPoint)
             moveList.append((start[0] - bestPoint[0], start[1] - bestPoint[1]))
+            self.x -= start[0] - bestPoint[0]
+            self.y -= start[1] - bestPoint[1]
             if (abs(bestPoint[0] - target[0]) <= 1 and
                     abs(bestPoint[1] - target[1]) <= 1):
                 pathFound = True
-        self.curMovements = moveList
+        self.curMovements.extend(moveList)
 
 
+class Button(object):
+
+    def __init__(self, start, width, height, text, size, bgColor, textColor, font):
+        self.start = start
+        self.width = width
+        self.height = height
+        self.text = text
+        self.fontSize = size
+        self.bgColor = bgColor
+        self.textColor = textColor
+        self.font = pygame.font.Font(font, size)
+
+    def drawButton(self, gameDisplay):
+        pygame.draw.rect(gameDisplay, self.bgColor, (self.start, (self.width, self.height)))
+        text = self.font.render(self.text, True, self.textColor)
+        height = self.start[1] +  self.height//2 - text.get_height()//2
+        width = self.start[0] + self.width//2 - text.get_width()//2
+        gameDisplay.blit(text, (width, height))
+
+    def didClick(self, click):
+        return click[0] >= self.start[0] \
+            and click[0] <= self.start[0] + self.width \
+            and click[1] >= self.start[1] \
+            and click[1] <= self.start[1] + self.height
+
+class Sky(object):
+
+    def __init__(self):
+        self.r = 109
+        self.g = 169
+        self.b = 191
+        self.dir = 0.05
+
+    def color(self):
+        return (int(self.r), int(self.g), int(self.b))
+
+    def update(self):
+        if self.g >= 255 or self.b >= 255:
+            self.dir *= -1
+        elif self.g <= 75 or self.b <= 75:
+            self.dir *= -1
+        self.g += self.dir
+        self.b += self.dir
 
 #######################################################################
 # Main Game Function
@@ -555,17 +621,24 @@ class Spider(object):
 
 class SpiderGame(object):
     # Game Modes
+    START = -1
+    MAIN_HELP = 4
+    TREE_SELECTION_HELP = -2
     TREE_SELECTION = 0
     GAME_SCREEN = 1
     DRAW_WEB = 2
+    MAX_WEB = 30
+    END_GAME_SCREEN = 5
 
     def __init__(self, width=1000, height=600):
         pygame.init()
-        self.font = pygame.font.Font(None, 40)
+        fontPath = os.path.abspath("Desktop/CMU First Year/112/15-112-Term-Project/fonts/Pixeled.ttf")
+        self.fontPath = fontPath
+        self.font = pygame.font.Font(fontPath, 20)
         self.width = width
         self.height = height
         self.fps = 150
-        self.mode = SpiderGame.TREE_SELECTION
+        self.mode = SpiderGame.START
         self.ropeList = []
         self.bugList = []
         self.ropeSurface = None
@@ -577,10 +650,17 @@ class SpiderGame(object):
             (width // 2, height - 100), random.randint(6, 8))
         self.gameDisplay = pygame.display.set_mode((width, height))
         pygame.display.set_caption("Spider Game")
+        self.webLabel = Button((self.width - 220, 10), 200, 50, "DRAWING WEB", 15, (220, 220, 220), (1, 1, 1), self.fontPath)
         self.spider = Spider(self.tree.branches[0].start)
         self.ground = Hill(self.tree.branches[0].start, width, height)
         self.treeX = 0
         self.treeY = 0
+        self.sky = Sky()
+        self.didContinue = False
+        # Create whole screen color
+        self.screen = pygame.Surface((width, height))
+        self.screen.set_alpha(230)
+        self.startInit()
         self.runGame()
 
     def runGame(self):
@@ -588,23 +668,99 @@ class SpiderGame(object):
         clock = pygame.time.Clock()
         self.drawingLine = False
         while not self.gameExit:
-            self.gameDisplay.fill((136, 190, 216))
+            self.gameDisplay.fill(self.sky.color())
             # DRAW ELEMENTS
-            self.updateRopes()
-            self.drawTree()
             self.drawBugs()
-            self.drawScore()
+            if self.mode == SpiderGame.GAME_SCREEN or self.mode == SpiderGame.DRAW_WEB:
+                self.updateRopes()
+            self.drawTree()
+            if self.mode == SpiderGame.GAME_SCREEN or self.mode == SpiderGame.DRAW_WEB:
+                self.drawScore()
+            if self.mode == SpiderGame.GAME_SCREEN or self.mode == SpiderGame.DRAW_WEB:
+                self.drawSpider()
+            if self.mode == SpiderGame.START or self.mode == SpiderGame.TREE_SELECTION_HELP or self.mode == SpiderGame.MAIN_HELP or self.mode == self.END_GAME_SCREEN:
+                self.drawScreen()
+            if self.mode == SpiderGame.DRAW_WEB:
+                self.drawWebLabel()
             self.drawGround()
-            self.drawSpider()
+            self.curBranch = self.tree.pointOnBranch((self.spider.startX, self.spider.startY))
             # CHECK ALL EVENTS
             self.checkEvents()
             # UPDATE OBJECT STATES
-            self.updateBugs()
-            self.setWind()
-            self.drawLine()
-            self.updateSpider()
+            if self.mode == SpiderGame.GAME_SCREEN:
+                self.updateBugs()
+                self.setWind()
+                self.updateSpider()
+                self.sky.update()
+            if self.mode == SpiderGame.DRAW_WEB:
+                self.drawLine()
             pygame.display.update()
             clock.tick(self.fps)
+
+    def startInit(self):
+        start = self.width//2 - 100
+        titleFont = pygame.font.Font(self.fontPath, 35)
+        authorFont = pygame.font.Font(self.fontPath, 30)
+        startTitle = titleFont.render("SPIDER WEB SIMULATOR", True, (255, 255, 255))
+        author = authorFont.render("BY ILANA FRANKLIN", True, (255, 255, 255))
+        titleCenter = self.width//2 - startTitle.get_width()//2
+        authorCenter = self.width//2 - author.get_width()//2
+        self.startButton = Button((start, 375), 200, 70, "BEGIN", 20, (132, 17, 21), (255, 255, 255), self.fontPath)
+        self.buttonFrame = pygame.Surface((self.width, self.height))
+        self.startButton.drawButton(self.buttonFrame)
+        self.buttonFrame.blit(startTitle, (titleCenter, 150))
+        self.buttonFrame.blit(author, (authorCenter, 250))
+        self.buttonFrame.set_colorkey((0, 0, 0, 255))
+
+    def treeSelectionHelpInit(self):
+        titleFont = pygame.font.Font(self.fontPath, 20)
+        font = pygame.font.Font(self.fontPath, 15)
+        helpTitle = titleFont.render("TREE SELECTION", True, (255, 255, 255))
+        line1 = font.render("PRESS  SPACE UNTIL YOU SEE A TREE YOU LIKE.", True, (255, 255, 255))
+        line2 = font.render("HIT ENTER TO START THE GAME.", True, (255, 255, 255))
+        self.helpButton = Button((self.width//2 - 100, 385), 200, 70, "GOT IT!", 20, (132, 17, 21), (255, 255, 255), self.fontPath)
+        self.buttonFrame.fill((0, 0, 0))
+        self.helpButton.drawButton(self.buttonFrame)
+        self.buttonFrame.blit(helpTitle, (getCenter(self.width, helpTitle), 100))
+        self.buttonFrame.blit(line1, (getCenter(self.width, line1), 200))
+        self.buttonFrame.blit(line2, (getCenter(self.width, line2), 300))
+
+    def mainHelpInit(self):
+        titleFont = pygame.font.Font(self.fontPath, 20)
+        font = pygame.font.Font(self.fontPath, 10)
+        helpTitle = titleFont.render("SPIDER WEB GAME", True, (255, 255, 255))
+        line1 = font.render("CLICK TO MOVE TO ANY COLORED BRANCH. PRESS W TO ENTER WEB DRAWING MODE.", True, (255, 255, 255))
+        line2 = font.render("IN WEB DRAWING MODE, CLICK FROM THE BRANCH YOU ARE CURRENTLY ON TO MAKE A WEB TO ANY OTHER BRANCH.", True, (255, 255, 255))
+        line3 = font.render("WATCH YOUR WEB LEVEL! BUILD MORE WEBS TO CATCH MORE BUGS AND GET MORE WEB.", True, (255, 255, 255))
+        line4 = font.render("TRY TO COLOR YOUR WHOLE TREE.", True, (255, 255, 255))
+        self.helpButton = Button((self.width//2 - 100, 400), 200, 60, "GOT IT!", 18, (132, 17, 21), (255, 255, 255), self.fontPath)
+        self.buttonFrame.fill((0, 0, 0))
+        self.helpButton.drawButton(self.buttonFrame)
+        self.buttonFrame.blit(helpTitle, (getCenter(self.width, helpTitle), 100))
+        self.buttonFrame.blit(line1, (getCenter(self.width, line1), 200))
+        self.buttonFrame.blit(line2, (getCenter(self.width, line2), 250))
+        self.buttonFrame.blit(line3, (getCenter(self.width, line3), 300))
+        self.buttonFrame.blit(line4, (getCenter(self.width, line4), 350))
+
+    def endGameInit(self):
+        titleFont = pygame.font.Font(self.fontPath, 30)
+        font = pygame.font.Font(self.fontPath, 20)
+        helpTitle = titleFont.render("CONGRATULATIONS!", True, (255, 255, 255))
+        line1 = font.render("YOU CONNECTED THE WHOLE TREE!", True, (255, 255, 255))
+        self.stayButton = Button((self.width//2 - 250, 300), 200, 70, "KEEP GOING", 16, (132, 17, 21), (255, 255, 255), self.fontPath)
+        self.playButton = Button((self.width//2 + 50, 300), 200, 70, "PLAY AGAIN", 16, (132, 17, 21), (255, 255, 255), self.fontPath)
+        self.buttonFrame.fill((0, 0, 0))
+        self.stayButton.drawButton(self.buttonFrame)
+        self.playButton.drawButton(self.buttonFrame)
+        self.buttonFrame.blit(helpTitle, (getCenter(self.width, helpTitle), 100))
+        self.buttonFrame.blit(line1, (getCenter(self.width, line1), 200))
+
+    def drawScreen(self):
+        self.gameDisplay.blit(self.screen, (0, 0))
+        self.gameDisplay.blit(self.buttonFrame, (0, 0))
+
+    def drawWebLabel(self):
+        self.webLabel.drawButton(self.gameDisplay)
 
     def drawTree(self):
         self.tree.drawTree(self.gameDisplay)
@@ -630,24 +786,25 @@ class SpiderGame(object):
         for bug in self.bugList:
             bug.update()
             bug.checkWebCollision(self.gameDisplay)
-            if bug.yVel is None:
+            if bug.yVel is None and self.webLevel != SpiderGame.MAX_WEB:
                 self.webLevel += 1
             if bug.x > self.width or bug.yVel is None:
                 self.bugList.remove(bug)
-        rand = random.randint(0, 40)
+        rand = random.randint(0, 100)
         if rand == 10:
             self.bugList.append(Bug(-5, random.randint(0, self.height), 1))
 
     def drawScore(self):
-        score = self.font.render(
-            "Bugs Caught: " + str(Bug.bugsCaught), True, (255, 0, 0))
-        speed = self.font.render(
-            "Wind Speed: " + str(self.wind), True, (255, 0, 0))
-        web = self.font.render("Web Remaining: " +
-                               str(self.webLevel), True, (255, 0, 0))
-        self.gameDisplay.blit(score, (10, 10))
-        self.gameDisplay.blit(speed, (10, 40))
-        self.gameDisplay.blit(web, (10, 70))
+        font = pygame.font.Font(self.fontPath, 10)
+        score = font.render("BUGS CAUGHT: " + str(Bug.bugsCaught), True, (255, 255, 255))
+        speed = font.render("WIND SPEED: " + str(self.wind), True, (255, 255, 255))
+        web = font.render("WEB REMAINING: " + "|" * (self.webLevel//2), True, (255, 255, 255))
+        self.scoreFrame = pygame.Surface((max(score.get_width(), speed.get_width(), web.get_width()) + 10, 65))
+        self.scoreFrame.set_alpha(230)
+        self.scoreFrame.blit(score, (5, 5))
+        self.scoreFrame.blit(speed, (5, 25))
+        self.scoreFrame.blit(web, (5, 45))
+        self.gameDisplay.blit(self.scoreFrame, (0, 0))
 
     def updateRopes(self):
         if self.ropeSurface is not None:
@@ -671,11 +828,11 @@ class SpiderGame(object):
             self.ground.scale(self.tree.branches[0].start, 3.5)
             self.spider.move((self.tree.availableBranches[0].start[0],
                               self.tree.availableBranches[0].start[1]),
-                             self.tree.availableBranches,
-                             self.gameDisplay)
+                             self.tree.availableBranches)
             self.ropeSurface = pygame.Surface(self.tree.findRect()[1])
             self.ropeSurface.set_colorkey((0, 0, 0))
-            self.mode = SpiderGame.GAME_SCREEN
+            self.mode = SpiderGame.MAIN_HELP
+            self.mainHelpInit()
 
     def pointInAvailableBranches(self, point):
         for branch in self.tree.availableBranches:
@@ -685,12 +842,13 @@ class SpiderGame(object):
 
     def drawWebEvents(self, event, keys):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.pointInAvailableBranches(pygame.mouse.get_pos()):
+            if self.curBranch.inBranch(pygame.mouse.get_pos()):
                 if not self.drawingLine:
                     self.drawingLine = True
                     self.startTemp = pygame.mouse.get_pos()
-            if self.gameDisplay.get_at(pygame.mouse.get_pos()) == \
-                    (0, 0, 0, 255):
+            elif self.gameDisplay.get_at(pygame.mouse.get_pos()) == \
+                    (0, 0, 0, 255) \
+                    or self.pointInAvailableBranches(pygame.mouse.get_pos()):
                 if self.drawingLine:
                     self.drawingLine = False
                     endTemp = pygame.mouse.get_pos()
@@ -709,26 +867,73 @@ class SpiderGame(object):
                         self.webLevel -= numNodes
                         for other in self.ropeList:
                             newRope.solveIntersection(other)
-                    for branch in self.tree.branches:
-                        if branch.inBranch(endTemp):
-                            self.tree.availableBranches.append(branch)
-        if keys[pygame.K_ESCAPE]:
+                        for branch in self.tree.branches:
+                            if branch.inBranch(endTemp):
+                                self.tree.availableBranches.append(branch)
+                                break
+                        if set(self.tree.branches) == set(self.tree.availableBranches) and not self.didContinue:
+                            self.mode == SpiderGame.END_GAME_SCREEN
+                            self.endGameInit()
+        if keys[pygame.K_ESCAPE] or keys[pygame.K_w]:
             self.mode = SpiderGame.GAME_SCREEN
 
     def gameScreenEvents(self, event, keys):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.pointInAvailableBranches(pygame.mouse.get_pos()):
-                self.spider.move(pygame.mouse.get_pos(),
-                                 self.tree.availableBranches,
-                                 self.gameDisplay)
+            movePoint = pygame.mouse.get_pos()
+            if self.pointInAvailableBranches(movePoint):
+                path = self.tree.path((self.spider.startX, self.spider.startY), movePoint)
+                for point in path:
+                    self.spider.move(point, self.tree.availableBranches)
+                self.spider.x = self.spider.startX
+                self.spider.y = self.spider.startY
         if keys[pygame.K_w]:
             self.mode = SpiderGame.DRAW_WEB
+
+    def endGameEvents(self, event, keys):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.stayButton.didClick(pygame.mouse.get_pos()):
+                self.mode = SpiderGame.GAME_SCREEN
+                self.didContinue = True
+            elif self.playButton.didClick(pygame.mouse.get_pos()):
+                Bug.bugsCaught = 0
+                SpiderGame()
+
+    def startSelectionEvents(self, event, keys):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.startButton.didClick(pygame.mouse.get_pos()):
+                self.mode = SpiderGame.TREE_SELECTION_HELP
+                self.treeSelectionHelpInit()
+        if keys[pygame.K_RETURN]:
+            self.mode = SpiderGame.TREE_SELECTION_HELP
+            self.treeSelectionHelpInit()
+
+    def treeHelpSelectionEvents(self, event, keys):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.helpButton.didClick(pygame.mouse.get_pos()):
+                self.mode = SpiderGame.TREE_SELECTION
+        if keys[pygame.K_RETURN]:
+            self.mode = SpiderGame.TREE_SELECTION
+
+    def mainHelpEvents(self, event, keys):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.helpButton.didClick(pygame.mouse.get_pos()):
+                self.mode = SpiderGame.GAME_SCREEN
+        if keys[pygame.K_RETURN]:
+            self.mode = SpiderGame.GAME_SCREEN
 
     def checkEvents(self):
         for event in pygame.event.get():
             keys = pygame.key.get_pressed()
             if event.type == pygame.QUIT:
                 self.gameExit = True
+            elif self.mode == self.END_GAME_SCREEN:
+                self.endGameEvents(event, keys)
+            elif self.mode == SpiderGame.MAIN_HELP:
+                self.mainHelpEvents(event, keys)
+            elif self.mode == SpiderGame.TREE_SELECTION_HELP:
+                self.treeHelpSelectionEvents(event, keys)
+            elif self.mode == SpiderGame.START:
+                self.startSelectionEvents(event, keys)
             elif self.mode == SpiderGame.TREE_SELECTION:
                 self.treeSelectionEvents(keys)
             elif self.mode == SpiderGame.GAME_SCREEN:
