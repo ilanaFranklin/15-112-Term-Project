@@ -322,6 +322,10 @@ class treeDrawing(object):
             if depth == 0:
                 return None
             else:
+                if angle < 30:
+                    angle = 30
+                if angle > 150:
+                    angle = 150
                 length = random.randint(minLength, maxLength)
                 endPoint = treeDrawing.calculateEndpoint(
                     startPoint, length, angle)
@@ -345,9 +349,10 @@ class treeDrawing(object):
         return branchList
 
     def pointOnBranch(self, point):
-        for branch in self.availableBranches:
+        for branch in self.branches:
             if branch.inBranch(point):
                 return branch
+        return None
 
     @staticmethod
     def calculateEndpoint(startPoint, length, angle):
@@ -426,19 +431,50 @@ class treeDrawing(object):
     def path(self, startPoint, endPoint):
         startBranch = self.pointOnBranch(startPoint)
         endBranch = self.pointOnBranch(endPoint)
-        path = [endPoint]
-        sameBranch = (startBranch == endBranch)
-        while not sameBranch:
-            if endBranch.orig is None:
-                break
-            if endBranch == startBranch.orig:
-                path.append(startBranch.start)
-                break
-            path.append(endBranch.start)
+        if startBranch is None or endBranch is None:
+            return None
+        endPath = [endPoint]
+        if startBranch == endBranch:
+            return endPath
+        while endBranch.orig is not None:
+            endPath.append(endBranch.start)
             endBranch = endBranch.orig
-            sameBranch = (startBranch == endBranch)
-        path.reverse()
-        return path
+        startPath = []
+        while startBranch.orig is not None:
+            startPath.append(startBranch.start)
+            startBranch = startBranch.orig
+        inCommon = [endPath[i]
+                    for i in range(len(endPath)) if endPath[i] in startPath]
+        for i in range(len(inCommon)):
+            endPath.remove(inCommon[i])
+            startPath.remove(inCommon[i])
+        endPath.reverse()
+        if len(inCommon) > 0:
+            startPath.append(inCommon[0])
+        startPath.extend(endPath)
+        finalPath = startPath[0]
+        finalPath = [startPath[i] for i in range(len(startPath)) if startPath[
+            i] not in finalPath]
+        return finalPath
+
+    # Old path function, very buggy
+    # def path(self, startPoint, endPoint):
+    #     startBranch = self.pointOnBranch(startPoint)
+    #     endBranch = self.pointOnBranch(endPoint)
+    #     if startBranch is None or endBranch is None: return None
+    #     path = [endPoint]
+    #     sameBranch = (startBranch == endBranch)
+    #     while not sameBranch:
+    #         if endBranch.orig is None:
+    #             break
+    #         if endBranch == startBranch.orig:
+    #             path.append(startBranch.start)
+    #             break
+    #         path.append(endBranch.start)
+    #         endBranch = endBranch.orig
+    #         sameBranch = (startBranch == endBranch)
+    #     path.reverse()
+    #     return path
 
 
 # Other Classes
@@ -566,7 +602,7 @@ class Spider(object):
                           self.startY - self.r - math.sqrt(3)),
                          (self.startX, self.startY))
 
-    def move(self, target, availableBranches):
+    def move(self, target, availableBranches, tree):
         # Uses A* Pathfinding Algorithm
         closedList = [(self.x, self.y)]
         moveList = []
@@ -592,6 +628,8 @@ class Spider(object):
             if (abs(bestPoint[0] - target[0]) <= 1 and
                     abs(bestPoint[1] - target[1]) <= 1):
                 pathFound = True
+        if tree.pointOnBranch((self.x, self.y)) is None:
+            return None
         self.curMovements.extend(moveList)
 
 
@@ -714,6 +752,9 @@ class SpiderGame(object):
 
     def __init__(self, width=1000, height=600):
         pygame.init()
+        pygame.mixer.music.load("Desktop/CMU First Year/112/" +
+                                "15-112-Term-Project/8bit.ogv")
+        pygame.mixer.music.play(-1)
         fontPath = os.path.abspath("Desktop/CMU First Year/112/" +
                                    "15-112-Term-Project/fonts/Pixeled.ttf")
         self.fontPath = fontPath
@@ -754,11 +795,11 @@ class SpiderGame(object):
         while not self.gameExit:
             self.gameDisplay.fill(self.sky.color())
             # DRAW ELEMENTS
-            self.drawBugs()
             if self.mode == SpiderGame.GAME_SCREEN\
                     or self.mode == SpiderGame.DRAW_WEB\
                     or self.mode == SpiderGame.END_GAME_SCREEN:
                 self.drawClouds()
+            self.drawBugs()
             if self.mode == SpiderGame.GAME_SCREEN\
                     or self.mode == SpiderGame.DRAW_WEB:
                 self.updateRopes()
@@ -791,6 +832,8 @@ class SpiderGame(object):
             self.sky.update()
             if self.mode == SpiderGame.DRAW_WEB:
                 self.drawLine()
+            if self.curBranch is None:
+                self.curBranch = self.tree.branches[0]
             pygame.display.update()
             clock.tick(self.fps)
 
@@ -973,7 +1016,7 @@ class SpiderGame(object):
             self.ground.scale(self.tree.branches[0].start, 3.5)
             self.spider.move((self.tree.availableBranches[0].start[0],
                               self.tree.availableBranches[0].start[1]),
-                             self.tree.availableBranches)
+                             self.tree.availableBranches, self.tree)
             self.ropeSurface = pygame.Surface(self.tree.findRect()[1])
             self.ropeSurface.set_colorkey((0, 0, 0))
             self.mode = SpiderGame.MAIN_HELP
@@ -991,9 +1034,8 @@ class SpiderGame(object):
                 if not self.drawingLine:
                     self.drawingLine = True
                     self.startTemp = pygame.mouse.get_pos()
-            elif self.gameDisplay.get_at(pygame.mouse.get_pos()) == \
-                    (0, 0, 0, 255) \
-                    or self.pointInAvailableBranches(pygame.mouse.get_pos()):
+            elif (self.tree.pointOnBranch(pygame.mouse.get_pos()) is not None
+                  or self.pointInAvailableBranches(pygame.mouse.get_pos())):
                 if self.drawingLine:
                     self.drawingLine = False
                     endTemp = pygame.mouse.get_pos()
@@ -1016,10 +1058,8 @@ class SpiderGame(object):
                             if branch.inBranch(endTemp):
                                 self.tree.availableBranches.append(branch)
                                 break
-                        if (set(self.tree.branches) ==
-                            set(self.tree.availableBranches)
-                                and not self.didContinue):
-                            self.mode == SpiderGame.END_GAME_SCREEN
+                        if len(self.tree.availableBranches) == len(self.tree.branches) and not self.didContinue:
+                            self.mode = SpiderGame.END_GAME_SCREEN
                             self.endGameInit()
         if keys[pygame.K_ESCAPE] or keys[pygame.K_w]:
             self.mode = SpiderGame.GAME_SCREEN
@@ -1031,8 +1071,10 @@ class SpiderGame(object):
                     and self.tree.pointOnBranch(movePoint).depth > 1:
                 path = self.tree.path((self.spider.startX, self.spider.startY),
                                       movePoint)
-                for point in path:
-                    self.spider.move(point, self.tree.availableBranches)
+                if path is not None:
+                    for point in path:
+                        self.spider.move(point, self.tree.availableBranches,
+                                         self.tree)
                 self.spider.x = self.spider.startX
                 self.spider.y = self.spider.startY
         if keys[pygame.K_w]:
